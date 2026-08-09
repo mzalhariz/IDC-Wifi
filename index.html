@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Datahall Detector</title>
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0a1a">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -65,9 +64,14 @@
       background: rgba(0,0,0,.3); border-radius: 12px;
       border: 1px solid rgba(255,255,255,.05);
       margin-bottom: 16px;
+      transition: all .3s;
+    }
+    .result-box.detected {
+      border-color: rgba(255,106,0,.3);
+      background: rgba(255,106,0,.03);
     }
     .result-hall {
-      font-size: 42px; font-weight: 800;
+      font-size: 48px; font-weight: 800;
       background: linear-gradient(135deg, #ff6a00, #ff9a44);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -75,6 +79,16 @@
     }
     .result-sub { font-size: 12px; color: #888; }
     .result-placeholder { font-size: 14px; color: #555; }
+    .result-ssid { font-size: 11px; color: #ff9a44; margin-top: 8px; opacity: 0.7; }
+
+    /* Auto-detect banner */
+    .auto-banner {
+      padding: 12px; background: rgba(47,168,79,.08);
+      border: 1px solid rgba(47,168,79,.2); border-radius: 10px;
+      text-align: center; font-size: 11px; color: #5fbb7a;
+      margin-bottom: 12px;
+    }
+    .auto-banner .icon { font-size: 16px; margin-bottom: 4px; }
 
     /* WiFi buttons grid */
     .wifi-grid {
@@ -97,8 +111,8 @@
       margin-top: 4px; opacity: 0.7;
     }
     .wifi-btn-detected {
-      background: rgba(255,106,0,.12); border-color: rgba(255,106,0,.4);
-      color: #ff9a44;
+      background: rgba(255,106,0,.12) !important; border-color: rgba(255,106,0,.4) !important;
+      color: #ff9a44 !important;
     }
 
     /* Form elements */
@@ -160,6 +174,26 @@
 
     .empty-state { text-align: center; padding: 30px; color: #555; font-size: 12px; }
 
+    /* Tasker setup */
+    .setup-step {
+      display: flex; gap: 10px; padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      font-size: 12px; color: #bbb;
+    }
+    .setup-step:last-child { border: none; }
+    .step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(255,106,0,.15); color: #ff9a44;
+      font-size: 11px; font-weight: 700; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .code-block {
+      background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 6px; padding: 8px 10px; font-family: monospace;
+      font-size: 11px; color: #ff9a44; margin: 6px 0;
+      word-break: break-all; cursor: pointer;
+    }
+
     /* Toast */
     #toast {
       position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -176,38 +210,33 @@
       text-align: center; font-size: 10px; color: #444;
       padding: 16px; margin-top: 8px;
     }
-
-    .open-wifi-btn {
-      display: block; text-align: center; padding: 10px;
-      background: rgba(100,100,255,.08); border: 1px solid rgba(100,100,255,.2);
-      border-radius: 8px; color: #8888ff; font-size: 11px;
-      text-decoration: none; margin-bottom: 12px; cursor: pointer;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>Datahall Detector</h1>
-      <p>Tap your connected WiFi &bull; MY88 DCT</p>
+      <p>WiFi Auto-Detect &bull; MY88 DCT</p>
     </div>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab('detect')">Detect</div>
       <div class="tab" onclick="switchTab('setup')">Setup</div>
+      <div class="tab" onclick="switchTab('helper')">Auto-Detect</div>
       <div class="tab" onclick="switchTab('manage')">Manage</div>
     </div>
 
     <!-- DETECT SECTION -->
     <div class="section active" id="sec-detect">
       <div class="card">
-        <div class="card-title">Tap Your Connected WiFi</div>
+        <div class="card-title">Current Location</div>
         <div class="result-box" id="detect-result">
-          <div class="result-placeholder">Tap the WiFi you're connected to below</div>
+          <div class="result-placeholder">Tap your WiFi below or use Auto-Detect shortcut</div>
         </div>
-        <div class="open-wifi-btn" onclick="openWifiSettings()">Open WiFi Settings to check</div>
+        <div id="auto-banner-area"></div>
+        <div class="info-box" style="text-align:center;">Tap the WiFi network you're currently connected to</div>
         <div class="wifi-grid" id="wifi-grid">
-          <div class="empty-state">No WiFi mapped yet.<br>Go to Setup tab to add SSIDs.</div>
+          <div class="empty-state" style="grid-column:1/-1;">No WiFi mapped yet.<br>Go to Setup tab to add SSIDs.</div>
         </div>
       </div>
     </div>
@@ -217,7 +246,7 @@
       <div class="card">
         <div class="card-title">Map WiFi to Datahall</div>
         <div class="info-box">
-          Add the WiFi network names (SSIDs) visible in each datahall. When you tap a WiFi name in the Detect tab, it will instantly identify your hall.
+          Add the WiFi network names (SSIDs) you see in each datahall. Multiple SSIDs can map to the same hall.
         </div>
 
         <div class="form-group">
@@ -245,6 +274,69 @@
       </div>
     </div>
 
+    <!-- AUTO-DETECT HELPER SECTION -->
+    <div class="section" id="sec-helper">
+      <div class="card">
+        <div class="card-title">Auto-Detect Setup</div>
+        <div class="info-box">
+          Use <b>MacroDroid</b> (free) or <b>Tasker</b> to create a home screen shortcut that reads your WiFi and opens this app automatically. <b>One tap = instant detection!</b>
+        </div>
+
+        <div class="card-title" style="margin-top:12px;">MacroDroid (Recommended - Free)</div>
+        <div class="setup-step">
+          <span class="step-num">1</span>
+          <span>Install <b>MacroDroid</b> from Play Store</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">2</span>
+          <span>Create new Macro → Trigger: <b>Shortcut Launched</b></span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">3</span>
+          <span>Action: <b>Open Website / HTTP GET</b></span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">4</span>
+          <span>Enter this URL (tap to copy):</span>
+        </div>
+        <div class="code-block" onclick="copyUrl()">https://mzalhariz.github.io/IDC-Wifi/?ssid={wifi_ssid}</div>
+        <div class="setup-step">
+          <span class="step-num">5</span>
+          <span>In MacroDroid, use variable <b>{wifi_ssid}</b> — it auto-fills your connected WiFi name</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">6</span>
+          <span>Save macro → Add <b>MacroDroid shortcut</b> to home screen</span>
+        </div>
+
+        <div class="info-box" style="margin-top:16px;">
+          <b>Result:</b> Tap shortcut on home screen → MacroDroid reads your WiFi → opens this page → hall detected instantly!
+        </div>
+
+        <div class="card-title" style="margin-top:16px;">Tasker Alternative</div>
+        <div class="setup-step">
+          <span class="step-num">1</span>
+          <span>Task → Action: Browse URL</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-num">2</span>
+          <span>URL:</span>
+        </div>
+        <div class="code-block" onclick="copyTaskerUrl()">https://mzalhariz.github.io/IDC-Wifi/?ssid=%WIFII</div>
+        <div class="setup-step">
+          <span class="step-num">3</span>
+          <span><b>%WIFII</b> is Tasker's variable for connected WiFi SSID</span>
+        </div>
+
+        <div class="card-title" style="margin-top:16px;">Test Auto-Detect</div>
+        <div class="form-group">
+          <label>Simulate SSID (test without MacroDroid)</label>
+          <input type="text" id="test-ssid" placeholder="Type a WiFi name to test">
+        </div>
+        <button class="btn btn-secondary" onclick="testDetect()">Test Detection</button>
+      </div>
+    </div>
+
     <!-- MANAGE SECTION -->
     <div class="section" id="sec-manage">
       <div class="card">
@@ -262,7 +354,7 @@
       </div>
     </div>
 
-    <div class="footer">MY88 DCT &middot; WiFi Detect v1.0 &middot; Design by Zalhariz</div>
+    <div class="footer">MY88 DCT &middot; WiFi Detect v2.0 &middot; Design by Zalhariz</div>
   </div>
 
   <div id="toast"></div>
@@ -280,7 +372,8 @@
 
     function switchTab(tab) {
       document.querySelectorAll('.tab').forEach(el => {
-        el.classList.toggle('active', el.textContent.trim().toLowerCase() === tab);
+        const tabName = el.textContent.trim().toLowerCase().replace('-', '');
+        el.classList.toggle('active', tabName === tab || el.dataset.tab === tab);
       });
       document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
       document.getElementById('sec-' + tab).classList.add('active');
@@ -289,11 +382,51 @@
       if (tab === 'manage') renderStats();
     }
 
-    function openWifiSettings() {
-      window.location.href = 'intent://settings/wifi#Intent;scheme=android-app;end;';
-      setTimeout(() => {
-        window.open('App-Prefs:root=WIFI', '_self');
-      }, 500);
+    // Fix tab switching
+    document.querySelectorAll('.tab').forEach(el => {
+      const text = el.textContent.trim();
+      if (text === 'Detect') el.dataset.tab = 'detect';
+      else if (text === 'Setup') el.dataset.tab = 'setup';
+      else if (text === 'Auto-Detect') el.dataset.tab = 'helper';
+      else if (text === 'Manage') el.dataset.tab = 'manage';
+      el.onclick = () => switchTab(el.dataset.tab);
+    });
+
+    // --- AUTO-DETECT FROM URL ---
+    function checkUrlParam() {
+      const params = new URLSearchParams(window.location.search);
+      const ssid = params.get('ssid');
+      if (ssid) {
+        const match = mappings.find(m => m.ssid.toLowerCase() === ssid.toLowerCase());
+        const resultBox = document.getElementById('detect-result');
+        const bannerArea = document.getElementById('auto-banner-area');
+
+        if (match) {
+          resultBox.innerHTML = `
+            <div class="result-hall">${match.hall}</div>
+            <div class="result-sub">Auto-detected</div>
+            <div class="result-ssid">Connected: ${ssid}</div>
+          `;
+          resultBox.classList.add('detected');
+          bannerArea.innerHTML = `<div class="auto-banner"><div class="icon">&#10003;</div>Auto-detected via WiFi</div>`;
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+          // Highlight matching button
+          setTimeout(() => {
+            document.querySelectorAll('.wifi-btn').forEach(el => {
+              if (el.dataset.ssid && el.dataset.ssid.toLowerCase() === ssid.toLowerCase()) {
+                el.classList.add('wifi-btn-detected');
+              }
+            });
+          }, 100);
+        } else {
+          resultBox.innerHTML = `
+            <div class="result-placeholder">WiFi "${ssid}" not mapped to any hall</div>
+            <div class="result-ssid" style="margin-top:8px;">Go to Setup tab to add this SSID</div>
+          `;
+          bannerArea.innerHTML = `<div class="auto-banner" style="border-color:rgba(220,150,50,.3);color:#dda040;"><div class="icon">?</div>WiFi detected but not mapped: ${ssid}</div>`;
+        }
+      }
     }
 
     // --- DETECT ---
@@ -304,7 +437,7 @@
         return;
       }
       grid.innerHTML = mappings.map((m, i) =>
-        `<div class="wifi-btn" onclick="selectWifi(${i})">
+        `<div class="wifi-btn" data-ssid="${m.ssid}" onclick="selectWifi(${i})">
           ${m.ssid}
           <span class="hall-tag">${m.hall}</span>
         </div>`
@@ -313,10 +446,13 @@
 
     function selectWifi(idx) {
       const m = mappings[idx];
-      document.getElementById('detect-result').innerHTML = `
+      const resultBox = document.getElementById('detect-result');
+      resultBox.innerHTML = `
         <div class="result-hall">${m.hall}</div>
-        <div class="result-sub">Connected to: ${m.ssid}</div>
+        <div class="result-sub">Manual selection</div>
+        <div class="result-ssid">WiFi: ${m.ssid}</div>
       `;
+      resultBox.classList.add('detected');
 
       document.querySelectorAll('.wifi-btn').forEach((el, i) => {
         el.classList.toggle('wifi-btn-detected', i === idx);
@@ -374,6 +510,25 @@
       ).join('');
     }
 
+    // --- HELPER ---
+    function copyUrl() {
+      navigator.clipboard.writeText('https://mzalhariz.github.io/IDC-Wifi/?ssid={wifi_ssid}').then(() => {
+        showToast('URL copied! Paste in MacroDroid', 'success');
+      });
+    }
+
+    function copyTaskerUrl() {
+      navigator.clipboard.writeText('https://mzalhariz.github.io/IDC-Wifi/?ssid=%WIFII').then(() => {
+        showToast('URL copied! Paste in Tasker', 'success');
+      });
+    }
+
+    function testDetect() {
+      const ssid = document.getElementById('test-ssid').value.trim();
+      if (!ssid) { showToast('Enter a WiFi name to test', 'error'); return; }
+      window.location.href = window.location.pathname + '?ssid=' + encodeURIComponent(ssid);
+    }
+
     // --- MANAGE ---
     function renderStats() {
       const hallSet = new Set(mappings.map(m => m.hall));
@@ -418,17 +573,19 @@
       localStorage.removeItem('dhd_mappings');
       renderWifiGrid();
       renderStats();
+      renderMappingList();
       showToast('All data cleared');
     }
 
-    // --- Keyboard enter ---
+    // --- Keyboard ---
     document.getElementById('setup-ssid').addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); document.getElementById('setup-hall').focus(); }
     });
 
-    // Init
+    // --- Init ---
     renderWifiGrid();
     renderMappingList();
+    checkUrlParam();
   </script>
 </body>
 </html>
