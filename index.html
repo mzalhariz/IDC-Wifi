@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Datahall Detector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(145deg, #0a0a1a 0%, #0d1b2a 50%, #0a0a1a 100%);
+      color: #e4e4f0;
+      min-height: 100vh;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+    .container { max-width: 480px; margin: 0 auto; }
+    .header {
+      text-align: center;
+      padding: 24px 16px;
+      background: rgba(255,255,255,.03);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #ff6a00, #ff9a44);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header p { font-size: 12px; color: #888; margin-top: 6px; }
+    .card {
+      background: rgba(255,255,255,.03);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600; color: #ff9a44;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .tabs {
+      display: flex; gap: 8px; margin-bottom: 16px;
+    }
+    .tab {
+      flex: 1; padding: 10px; border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px; background: rgba(0,0,0,.2);
+      color: #888; font-size: 12px; font-weight: 600;
+      text-align: center; cursor: pointer; transition: all .2s;
+    }
+    .tab.active {
+      background: rgba(255,106,0,.1); border-color: rgba(255,106,0,.3);
+      color: #ff9a44;
+    }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* Detection result */
+    .result-box {
+      text-align: center; padding: 24px;
+      background: rgba(0,0,0,.3); border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.05);
+      margin-bottom: 16px;
+    }
+    .result-hall {
+      font-size: 36px; font-weight: 800;
+      background: linear-gradient(135deg, #ff6a00, #ff9a44);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+    .result-confidence {
+      font-size: 11px; color: #888;
+    }
+    .result-placeholder {
+      font-size: 14px; color: #555;
+    }
+
+    /* Form elements */
+    select, input[type="text"], input[type="number"] {
+      width: 100%; padding: 10px 12px;
+      background: rgba(0,0,0,.3); color: #e4e4f0;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px; font-size: 13px;
+      font-family: inherit; outline: none;
+      transition: border-color .2s;
+    }
+    select:focus, input:focus { border-color: rgba(255,106,0,.4); }
+    select { appearance: none; cursor: pointer; }
+    label { font-size: 11px; color: #888; margin-bottom: 4px; display: block; font-weight: 500; }
+    .form-group { margin-bottom: 12px; }
+
+    /* Buttons */
+    .btn {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all .2s; font-family: inherit;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #ff6a00, #e85d00);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary {
+      background: rgba(255,106,0,.08); border: 1px solid rgba(255,106,0,.3);
+      color: #ff9a44;
+    }
+    .btn-secondary:hover { background: rgba(255,106,0,.15); }
+    .btn-danger {
+      background: rgba(220,50,50,.1); border: 1px solid rgba(220,50,50,.3);
+      color: #e05555;
+    }
+    .btn-small { width: auto; padding: 6px 12px; font-size: 11px; }
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+
+    /* WiFi entry list */
+    .wifi-entry {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; background: rgba(0,0,0,.2);
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 8px; margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .wifi-entry .ssid { flex: 1; color: #ccc; font-weight: 500; }
+    .wifi-entry .signal { color: #ff9a44; font-weight: 600; min-width: 45px; text-align: right; }
+    .wifi-entry .remove {
+      color: #e05555; cursor: pointer; font-size: 16px;
+      padding: 0 4px; opacity: 0.7;
+    }
+    .wifi-entry .remove:hover { opacity: 1; }
+
+    /* Fingerprint list */
+    .fp-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; background: rgba(0,0,0,.2);
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 8px; margin-bottom: 6px;
+    }
+    .fp-item .hall-name { font-weight: 600; color: #ff9a44; }
+    .fp-item .ap-count { font-size: 11px; color: #888; }
+    .fp-item .actions { display: flex; gap: 6px; }
+
+    /* Info box */
+    .info-box {
+      padding: 10px 12px; background: rgba(255,106,0,.05);
+      border: 1px solid rgba(255,106,0,.15); border-radius: 8px;
+      font-size: 11px; color: #bbb; line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(30,30,50,.95); border: 1px solid rgba(255,255,255,.1);
+      color: #fff; padding: 10px 18px; border-radius: 10px;
+      font-size: 12px; opacity: 0; transition: opacity .3s; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { border-color: rgba(47,168,79,.4); }
+    #toast.error { border-color: rgba(220,50,50,.4); }
+
+    /* Stats */
+    .stats-row {
+      display: flex; gap: 8px; margin-bottom: 16px;
+    }
+    .stat {
+      flex: 1; text-align: center; padding: 12px 8px;
+      background: rgba(0,0,0,.2); border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .stat .num { font-size: 20px; font-weight: 700; color: #ff9a44; }
+    .stat .lbl { font-size: 10px; color: #888; margin-top: 2px; }
+
+    .empty-state {
+      text-align: center; padding: 30px; color: #555; font-size: 12px;
+    }
+
+    .footer {
+      text-align: center; font-size: 10px; color: #444;
+      padding: 16px; margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Datahall Detector</h1>
+      <p>WiFi Signal Fingerprinting &bull; MY88 DCT</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('detect')">Detect</div>
+      <div class="tab" onclick="switchTab('train')">Train</div>
+      <div class="tab" onclick="switchTab('manage')">Manage</div>
+    </div>
+
+    <!-- DETECT SECTION -->
+    <div class="section active" id="sec-detect">
+      <div class="card">
+        <div class="card-title">Current Location</div>
+        <div class="result-box" id="detect-result">
+          <div class="result-placeholder">Enter WiFi readings to detect your datahall</div>
+        </div>
+
+        <div class="info-box">
+          Open your phone's <b>WiFi Settings</b> and note the visible networks with their signal strengths (dBm). Enter them below for detection.
+        </div>
+
+        <div id="detect-wifi-list"></div>
+
+        <div class="form-group">
+          <label>SSID (Network Name)</label>
+          <input type="text" id="detect-ssid" placeholder="e.g. Alibaba-Staff">
+        </div>
+        <div class="form-group">
+          <label>Signal Strength (dBm, e.g. -45)</label>
+          <input type="number" id="detect-signal" placeholder="-45" min="-100" max="0">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-small" onclick="addDetectWifi()">+ Add AP</button>
+          <button class="btn btn-primary btn-small" style="flex:1;" onclick="detectHall()">Detect Hall</button>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="clearDetectList()">Clear List</button>
+      </div>
+    </div>
+
+    <!-- TRAIN SECTION -->
+    <div class="section" id="sec-train">
+      <div class="card">
+        <div class="card-title">Record Fingerprint</div>
+
+        <div class="info-box">
+          Go to a datahall, open WiFi settings on your phone, and record all visible networks with their signal strengths. This builds the fingerprint database.
+        </div>
+
+        <div class="form-group">
+          <label>Datahall</label>
+          <select id="train-hall">
+            <option value="">— Select Hall —</option>
+            <option value="A1-11">A1-11</option>
+            <option value="A1-13">A1-13</option>
+            <option value="A1-2">A1-2</option>
+            <option value="A2-11">A2-11</option>
+            <option value="C2-1">C2-1</option>
+            <option value="C3-1">C3-1</option>
+          </select>
+        </div>
+
+        <div id="train-wifi-list"></div>
+
+        <div class="form-group">
+          <label>SSID (Network Name)</label>
+          <input type="text" id="train-ssid" placeholder="e.g. Alibaba-Staff">
+        </div>
+        <div class="form-group">
+          <label>Signal Strength (dBm)</label>
+          <input type="number" id="train-signal" placeholder="-45" min="-100" max="0">
+        </div>
+        <button class="btn btn-secondary btn-small" onclick="addTrainWifi()">+ Add AP</button>
+
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="saveFingerprint()">Save Fingerprint</button>
+      </div>
+    </div>
+
+    <!-- MANAGE SECTION -->
+    <div class="section" id="sec-manage">
+      <div class="card">
+        <div class="card-title">Fingerprint Database</div>
+        <div class="stats-row">
+          <div class="stat"><div class="num" id="stat-halls">0</div><div class="lbl">Halls</div></div>
+          <div class="stat"><div class="num" id="stat-fps">0</div><div class="lbl">Fingerprints</div></div>
+          <div class="stat"><div class="num" id="stat-aps">0</div><div class="lbl">Total APs</div></div>
+        </div>
+        <div id="fp-list"></div>
+        <button class="btn btn-danger" style="margin-top:12px;" onclick="clearAllData()">Clear All Data</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Import / Export</div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" style="flex:1;" onclick="exportData()">Export JSON</button>
+          <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('import-file').click()">Import JSON</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
+      </div>
+    </div>
+
+    <div class="footer">MY88 DCT &middot; WiFi Fingerprint v1.0 &middot; Design by Zalhariz</div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const HALLS = ['A1-11', 'A1-13', 'A1-2', 'A2-11', 'C2-1', 'C3-1'];
+    let fingerprints = JSON.parse(localStorage.getItem('dhd_fingerprints') || '[]');
+    let detectWifiList = [];
+    let trainWifiList = [];
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'show ' + (type || '');
+      setTimeout(() => t.className = '', 2500);
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((el, i) => {
+        el.classList.toggle('active', el.textContent.trim().toLowerCase() === tab);
+      });
+      document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+      document.getElementById('sec-' + tab).classList.add('active');
+      if (tab === 'manage') renderManage();
+    }
+
+    // --- DETECT ---
+    function addDetectWifi() {
+      const ssid = document.getElementById('detect-ssid').value.trim();
+      const signal = parseInt(document.getElementById('detect-signal').value);
+      if (!ssid) { showToast('Enter SSID', 'error'); return; }
+      if (isNaN(signal) || signal > 0 || signal < -100) { showToast('Signal must be between -100 and 0 dBm', 'error'); return; }
+      detectWifiList.push({ ssid, signal });
+      document.getElementById('detect-ssid').value = '';
+      document.getElementById('detect-signal').value = '';
+      document.getElementById('detect-ssid').focus();
+      renderDetectList();
+    }
+
+    function removeDetectWifi(idx) {
+      detectWifiList.splice(idx, 1);
+      renderDetectList();
+    }
+
+    function renderDetectList() {
+      const el = document.getElementById('detect-wifi-list');
+      if (detectWifiList.length === 0) { el.innerHTML = ''; return; }
+      el.innerHTML = detectWifiList.map((w, i) =>
+        `<div class="wifi-entry">
+          <span class="ssid">${w.ssid}</span>
+          <span class="signal">${w.signal} dBm</span>
+          <span class="remove" onclick="removeDetectWifi(${i})">&times;</span>
+        </div>`
+      ).join('');
+    }
+
+    function clearDetectList() {
+      detectWifiList = [];
+      renderDetectList();
+      document.getElementById('detect-result').innerHTML = '<div class="result-placeholder">Enter WiFi readings to detect your datahall</div>';
+    }
+
+    function detectHall() {
+      if (detectWifiList.length === 0) { showToast('Add at least one WiFi reading', 'error'); return; }
+      if (fingerprints.length === 0) { showToast('No fingerprints trained yet. Go to Train tab first.', 'error'); return; }
+
+      const scores = [];
+      for (const fp of fingerprints) {
+        const dist = calcDistance(detectWifiList, fp.readings);
+        scores.push({ hall: fp.hall, distance: dist, timestamp: fp.timestamp });
+      }
+      scores.sort((a, b) => a.distance - b.distance);
+
+      const k = Math.min(3, scores.length);
+      const topK = scores.slice(0, k);
+      const hallVotes = {};
+      topK.forEach(s => { hallVotes[s.hall] = (hallVotes[s.hall] || 0) + 1; });
+
+      let bestHall = '';
+      let bestVotes = 0;
+      for (const [hall, votes] of Object.entries(hallVotes)) {
+        if (votes > bestVotes) { bestHall = hall; bestVotes = votes; }
+      }
+
+      const confidence = Math.round((bestVotes / k) * 100);
+      const minDist = topK[0].distance;
+      let matchQuality = 'High';
+      if (minDist > 30) matchQuality = 'Low';
+      else if (minDist > 15) matchQuality = 'Medium';
+
+      document.getElementById('detect-result').innerHTML = `
+        <div class="result-hall">${bestHall}</div>
+        <div class="result-confidence">Confidence: ${confidence}% &bull; Match: ${matchQuality} &bull; Distance: ${minDist.toFixed(1)}</div>
+      `;
+
+      if (navigator.vibrate) navigator.vibrate(100);
+      showToast(`Detected: ${bestHall}`, 'success');
+    }
+
+    function calcDistance(current, stored) {
+      const storedMap = {};
+      stored.forEach(r => { storedMap[r.ssid] = r.signal; });
+
+      let sumSq = 0;
+      let matched = 0;
+      const penalty = 30;
+
+      for (const c of current) {
+        if (storedMap[c.ssid] !== undefined) {
+          const diff = c.signal - storedMap[c.ssid];
+          sumSq += diff * diff;
+          matched++;
+        } else {
+          sumSq += penalty * penalty;
+        }
+      }
+
+      for (const s of stored) {
+        const found = current.find(c => c.ssid === s.ssid);
+        if (!found) {
+          sumSq += (penalty * 0.5) * (penalty * 0.5);
+        }
+      }
+
+      if (matched === 0) return 999;
+      return Math.sqrt(sumSq) / Math.max(current.length, stored.length);
+    }
+
+    // --- TRAIN ---
+    function addTrainWifi() {
+      const ssid = document.getElementById('train-ssid').value.trim();
+      const signal = parseInt(document.getElementById('train-signal').value);
+      if (!ssid) { showToast('Enter SSID', 'error'); return; }
+      if (isNaN(signal) || signal > 0 || signal < -100) { showToast('Signal must be between -100 and 0 dBm', 'error'); return; }
+      trainWifiList.push({ ssid, signal });
+      document.getElementById('train-ssid').value = '';
+      document.getElementById('train-signal').value = '';
+      document.getElementById('train-ssid').focus();
+      renderTrainList();
+    }
+
+    function removeTrainWifi(idx) {
+      trainWifiList.splice(idx, 1);
+      renderTrainList();
+    }
+
+    function renderTrainList() {
+      const el = document.getElementById('train-wifi-list');
+      if (trainWifiList.length === 0) { el.innerHTML = ''; return; }
+      el.innerHTML = trainWifiList.map((w, i) =>
+        `<div class="wifi-entry">
+          <span class="ssid">${w.ssid}</span>
+          <span class="signal">${w.signal} dBm</span>
+          <span class="remove" onclick="removeTrainWifi(${i})">&times;</span>
+        </div>`
+      ).join('');
+    }
+
+    function saveFingerprint() {
+      const hall = document.getElementById('train-hall').value;
+      if (!hall) { showToast('Select a datahall', 'error'); return; }
+      if (trainWifiList.length < 2) { showToast('Add at least 2 WiFi readings', 'error'); return; }
+
+      fingerprints.push({
+        hall,
+        readings: [...trainWifiList],
+        timestamp: new Date().toISOString()
+      });
+      localStorage.setItem('dhd_fingerprints', JSON.stringify(fingerprints));
+
+      trainWifiList = [];
+      renderTrainList();
+      document.getElementById('train-hall').value = '';
+      showToast(`Fingerprint saved for ${hall}!`, 'success');
+      if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+    }
+
+    // --- MANAGE ---
+    function renderManage() {
+      const hallSet = new Set(fingerprints.map(f => f.hall));
+      const totalAps = fingerprints.reduce((sum, f) => sum + f.readings.length, 0);
+      document.getElementById('stat-halls').textContent = hallSet.size;
+      document.getElementById('stat-fps').textContent = fingerprints.length;
+      document.getElementById('stat-aps').textContent = totalAps;
+
+      const list = document.getElementById('fp-list');
+      if (fingerprints.length === 0) {
+        list.innerHTML = '<div class="empty-state">No fingerprints recorded yet.<br>Go to Train tab to start.</div>';
+        return;
+      }
+
+      list.innerHTML = fingerprints.map((fp, i) =>
+        `<div class="fp-item">
+          <div>
+            <div class="hall-name">${fp.hall}</div>
+            <div class="ap-count">${fp.readings.length} APs &bull; ${new Date(fp.timestamp).toLocaleDateString()}</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-danger btn-small" onclick="deleteFingerprint(${i})">Del</button>
+          </div>
+        </div>`
+      ).join('');
+    }
+
+    function deleteFingerprint(idx) {
+      fingerprints.splice(idx, 1);
+      localStorage.setItem('dhd_fingerprints', JSON.stringify(fingerprints));
+      renderManage();
+      showToast('Fingerprint deleted');
+    }
+
+    function clearAllData() {
+      if (!confirm('Clear ALL fingerprint data?')) return;
+      fingerprints = [];
+      localStorage.removeItem('dhd_fingerprints');
+      renderManage();
+      showToast('All data cleared');
+    }
+
+    function exportData() {
+      if (fingerprints.length === 0) { showToast('No data to export', 'error'); return; }
+      const blob = new Blob([JSON.stringify(fingerprints, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `datahall_fingerprints_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      showToast('Exported!', 'success');
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!Array.isArray(data)) throw new Error('Invalid format');
+          fingerprints = data;
+          localStorage.setItem('dhd_fingerprints', JSON.stringify(fingerprints));
+          renderManage();
+          showToast(`Imported ${data.length} fingerprints!`, 'success');
+        } catch (err) {
+          showToast('Invalid file format', 'error');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    // --- Keyboard shortcuts ---
+    document.getElementById('detect-signal').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addDetectWifi(); }
+    });
+    document.getElementById('detect-ssid').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('detect-signal').focus(); }
+    });
+    document.getElementById('train-signal').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addTrainWifi(); }
+    });
+    document.getElementById('train-ssid').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('train-signal').focus(); }
+    });
+
+    renderManage();
+  </script>
+</body>
+</html>
